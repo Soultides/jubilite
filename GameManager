@@ -1,0 +1,219 @@
+using System.Collections;
+using System.Collections.Generic;
+using System.Threading;
+using UnityEngine;
+using UnityEngine.VFX;
+using TMPro;
+using UnityEngine.UI;
+
+public class GameManager : MonoBehaviour
+{
+    //public GameObject moveEffect;
+    private GameObject player;
+    public float timer;
+    public float beat1;
+    private float beat2;
+    private bool recording;
+    private bool beatgot;
+
+    private float scoreMult = 1;
+    public float score;
+    private float bracket;
+    public float combo;
+
+    //bracket bonuses for speed
+    public float bonuses;
+    private float topBonus = 16f;
+    private float midBonus = 8f;
+    private float botBonus = 4f;
+    public string currentBracket;
+    private string lastBracket;
+
+    //breakoffs for each bracket
+    private float cadenceCap1 = 0.25f;
+    private float cadenceCap2 = 0.35f;
+
+    //top combo bonus and how close the person can be to their last beat to be considered a combo
+    private float comboCap = 15f;
+    private float comboTolerance;
+    public string comboStatus;
+
+    public LeaderBoard LB;
+    public GameObject Leaderboard;
+    public GameObject Score;
+    public GameObject Combo;
+    public GameObject Circle;
+    public TMP_Text[] text;
+    public TMP_Text yourScore;
+    public TMP_Text ComboText;
+
+    public VisualEffect comboEffect;
+
+    public GameObject Controls;
+
+    private void Start()
+    {
+        player = FindObjectOfType<PlayerMovement>().gameObject;
+        LB = GetComponent<LeaderBoard>();
+        Controls.SetActive(true);
+    }
+    void Update()
+    {
+
+        Recording();
+
+    }
+
+    void Recording()
+    {
+        if (recording == false)
+        {
+            timer += Time.deltaTime;
+        }
+    }
+
+    public void Beat()
+    {
+        Controls.SetActive(false);
+        //Instantiate(moveEffect, player.transform.position, player.transform.rotation);
+        recording = true;
+        beat1 = timer;
+        //Debug.Log("First beat");
+        timer = 0;
+        //Debug.Log("Timer reset");
+        beatgot = true;
+        recording = false;
+
+        if (beatgot == true)
+        {
+            recording = true;
+            beat2 = timer;
+            //Debug.Log("Second beat");
+            timer = 0;
+            //Debug.Log("Timer reset");
+            beatgot = false;
+            recording = false;
+        }
+
+        ScoreCalc();
+    }
+
+
+    //cals a bonus based on how fast the players beat is, the faster, the bigger the bonus
+    void ScoreCalc()
+    {
+        if (cadenceCap1 >= beat1 && beat1 > 0f) 
+        {
+            bracket = topBonus;
+            lastBracket = currentBracket;
+            currentBracket = "top";
+            comboTolerance = 0.32f;
+            //Debug.Log("topBonus");
+        }
+
+        if (cadenceCap2 >= beat1 && beat1 > cadenceCap1)
+        {
+            bracket = midBonus;
+            lastBracket = currentBracket;
+            currentBracket = "mid";
+            comboTolerance = 0.4f;
+            //Debug.Log("midBonus");
+        }
+
+        if (beat1 > cadenceCap2)
+        {
+            bracket = botBonus;
+            lastBracket = currentBracket;
+            currentBracket = "bot";
+            comboTolerance = 0.5f;
+            //Debug.Log("botBonus");
+        }
+
+        ComboCalc();
+        bonuses = scoreMult * bracket + combo;
+        score += bonuses;
+
+    }
+
+    //calcs the combo bonus when beat2 is close to beat1, just adds the int to the score, up to a cap
+    void ComboCalc()
+    {
+        if (beat2 >= beat1 - comboTolerance && beat2 <= beat1 + comboTolerance)
+        {
+            if (combo <= comboCap)
+            {
+                //Debug.Log("Combo");
+                comboStatus = "Comboing";
+                combo += 1;
+                //ComboText.material.color = new Color(9, 0, 191);
+                Combo.GetComponent<Animator>().SetTrigger("Combo");
+                comboEffect.SetFloat("SpawnRate", 0);
+            }
+
+            if (combo == comboCap)
+            {
+                comboEffect.SetFloat("SpawnRate", 1000);
+                comboEffect.gameObject.GetComponent<Animator>().SetTrigger("Pulse");
+            }
+
+        }
+
+        if (beat2 < beat1 - comboTolerance || beat2 > beat1 + comboTolerance)
+        {
+
+            if (combo >= 10)
+            {
+                Circle.GetComponent<Image>().color = new Color(255, 0, 0, 136);
+                Invoke("ColorReset", 1);
+            }
+
+            ComboBreak();
+        }
+
+        if (lastBracket != currentBracket)
+        {
+
+            if (combo >= 10)
+            {
+                Circle.GetComponent<Image>().color = new Color(255, 0, 0, 136);
+                Invoke("ColorReset", 1);
+            }
+
+            ComboBreak();
+            //Debug.Log("Bracket Change");
+        }
+
+    }
+
+    void ComboBreak()
+    {
+        //Debug.Log("COMBO BREAKER");
+        comboStatus = "Broken";
+        combo = 0;
+    }
+
+    public void GameOver()
+    {
+        Invoke("GameOverUI", .5f);
+        LB.CreateFile();
+        int length = LB.scoreList.Count;
+        for (int i = 0; i < text.Length; i++)
+        {
+            text[i].text = (i + 1) + ". " + (LB.scoreList[length - i - 1]).ToString();
+        }
+        yourScore.text = "Your Score: \n" + score;
+    }
+    void GameOverUI()
+    {
+        Leaderboard.SetActive(true);
+        Leaderboard.GetComponent<Animator>().SetTrigger("Slide");
+        Score.GetComponent<Animator>().SetTrigger("Slide");
+
+    }
+
+    void ColorReset()
+    {
+        Circle.GetComponent<Image>().color = new Color(0, 0, 0, 136);
+        //Debug.Log("Color Reset");
+    }
+}
